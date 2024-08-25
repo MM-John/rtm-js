@@ -9,7 +9,7 @@
  *   md5 function on other platforms. I recommend this one:
  *   http://www.myersdaily.org/joseph/javascript/md5-text.html
  *
- *   Based on RTM PHP Library by Adam MagaÃ±a
+ *   Based on RTM PHP Library by Adam Magaña
  *   @see https://github.com/adammagana/rtm-php-library
  *
  *   License (The MIT License)
@@ -89,16 +89,13 @@
 		 * @param signed    Boolean specfying whether or not the URL should be signed
 		 * @return          Returns the URL encoded string of parameters
 		 */
-		this.encodeUrlParams = function (params, signed, excludeFormat) {
+		this.encodeUrlParams = function (params, signed) {
 			var params = (params) ? params : {},
 				signed = (signed) ? signed : false,
-				excludeFormat = (excludeFormat) ? excludeFormat : false,
 				paramString = '',
 				count;
 
-			if(!excludeFormat){
-				params.format = this.format;
-			}
+			params.format = this.format;
 			params.api_key = this.appKey;
 
 			count = 0;
@@ -169,7 +166,7 @@
 				params.frob = frob;
 			}
 
-			url = this.authUrl + this.encodeUrlParams(params, true, true);
+			url = this.authUrl + this.encodeUrlParams(params, true);
 
 			return url;
 		};
@@ -177,12 +174,15 @@
 		/**
 		 * Main method for making API calls
 		 * 
+		 * ( get() is an alias for get-like functions )
+		 * ( this one is generic do() for any function )
+		 * 
 		 * @param method    Specifies what API method to be used
 		 * @param params    Array of API parameters to accompany the method parameter
 		 * @param callback  Callback to fire after the request comes back
 		 * @return          Returns the reponse from the RTM API
 		 */
-		this.get = function (method, params, callback) {
+		this.do = function (method, params, callback) {
 			var method = (method) ? method : '',
 				params = (params) ? params : {},
 				callbackName,
@@ -267,7 +267,20 @@
 				s.src = requestUrl;
 				document.body.appendChild(s);
 			}
-		};
+		};  /* end this.do() */
+
+		/**
+		 * Alias of main method (rtm.do()) for making API calls
+		 * 
+		 * This one called 'get' for get-like functions.
+		 * 
+		 * as with do() :
+		 * @param method    Specifies what API method to be used
+		 * @param params    Array of API parameters to accompany the method parameter
+		 * @param callback  Callback to fire after the request comes back
+		 * @return          Returns the reponse from the RTM API
+		 */
+		this.get = this.do;
 	}
 
 	return exports;
