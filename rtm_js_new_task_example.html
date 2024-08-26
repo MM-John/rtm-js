@@ -1,0 +1,409 @@
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="description" content="rtm.js new task example">
+  <meta name="keywords" content="RememberTheMilk, git, RTM, node.js, JavaScript">
+  <meta name="author" content="John Kumpf">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  	<title>rtm.js new task example (for rememberthemilk.com)
+	</title>
+
+
+<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.0/jquery.min.js"></script>
+<script type="text/javascript" src="http://www.myersdaily.org/joseph/javascript/md5.js"></script>
+<script type="text/javascript" src="rtm.js"></script>
+<!-- https://github.com/aranel616/rtm-js/blob/master/rtm.js -->
+
+<script type="text/javascript">
+var rtm_frob;
+$(document).ready(function(){
+	$('#auth').click(rtm_log_in_func);
+
+	$('#new_task_button').click(new_task)
+
+	$('#test_button').click(do_rtm_test)
+	$('#time_button').click(do_rtm_time)
+
+	$('#new_task_string_input').val(get_dflt_new_task_string());
+	$('#test_results').html(rtm_test_init_text);
+	$('#time_results').html(rtm_time_init_text);
+
+	var api_key = '113434294be9a90d69b279ba1d84cbd3', /* 'INSERT API KEY HERE', */
+	    api_secret = '706005223334ba14' /* 'INSERT APP SECRET HERE', */
+	    ;
+	window.rtm = new RememberTheMilk(api_key, api_secret, 'delete');
+	rtm.get('rtm.auth.getFrob', function(resp){
+		$('#new_task_result').append('status: ' + resp.rsp.stat + ' : \'rtm.auth.getFrob\'');
+		$('#new_task_result').append('<br>');
+		$('#auth')   .attr('disabled', null);
+		$('#new_day').attr('disabled', null);
+		rtm_frob = resp.rsp.frob;
+	});
+});
+
+
+var add_to_result = function(str_msg) {
+	$('#new_task_result').append(str_msg);
+	$('#new_task_result').append('<br>');
+}
+
+var rtm_log_in_func = function(call_once_logged_in){
+		var auth_div_html_save = $('#auth_div').html()
+		$('#auth_div').append('<br />please wait...');
+		var authUrl = rtm.getAuthUrl(rtm_frob);
+		var popup = window.open(authUrl);
+		var checkPopup = setInterval(function(){
+			if (popup.closed == true) {
+				clearInterval(checkPopup);
+				rtm.get('rtm.auth.getToken', {frob: rtm_frob}, function(resp){
+					$('#new_task_result').append('status: ' + resp.rsp.stat + ' : \'rtm.auth.getToken\'');
+					$('#new_task_result').append('<br>');
+					rtm.auth_token = resp.rsp.auth.token;
+					/*loadLists();*/
+					call_once_logged_in();
+				});
+				$('#auth_div').html(auth_div_html_save)
+			}
+		}, 200);
+}
+
+/* date format helper function */
+function prepnd0(n){
+  if(n <= 9){
+    return "0" + n;
+  }
+  return n
+}
+function get_mm_dd_yyyy_slash(d) {
+	return prepnd0(1 + d.getMonth()) + '/' + prepnd0(d.getDate()) + '/' + d.getFullYear()
+}
+function get_day_of_week(d) {
+	/* return d.getDay() */ /* returns a number, eg 5 for Friday */
+	return d.toLocaleString('en-us', {  weekday: 'short' });
+}
+/* RTM smart add in API consumes every exclamation point if it preceeds a char and not space, even if it's not a number */
+var __excl_str = '__excl:'
+var get_dflt_new_task_string = function(){
+	/* !urgent: 07/31/2024 Wed some text ^today 5pm !1 testing rtm API smart add #tag1 #tools */
+	var d = new Date();
+	return __excl_str + "urgent: " + get_mm_dd_yyyy_slash(d) + " " + get_day_of_week(d) + ' some text ^today at 5pm !1 testing rtm API smart add #tag1 #tools'  /* can't have anything plain text after the tag */
+}
+var rtm_timeline
+var get_rtm_timeline = function(func_arg) {
+	if (rtm_timeline) {
+		/* just call arg right away */
+		func_arg()
+	}
+	else {
+		rtm.get('rtm.timelines.create', function(resp){
+			$('#new_task_result').append('status: ' + resp.rsp.stat + ' : \'rtm.timelines.create\'');
+			$('#new_task_result').append('<br>');
+			rtm_timeline = resp.rsp.timeline
+			func_arg()
+		})
+	}
+}
+/*
+*click*
+ new_task
+   rtm_log_in_func
+	 get_rtm_timeline
+      new_task_part2
+*/
+var new_task_string = 'uninit';
+var new_task = function(){
+	new_task_string = $('#new_task_string_input').val();
+	$('#new_task_result').append('<br>');
+	$('#new_task_result').append('task name: ' + new_task_string);
+	$('#new_task_result').append('<br>');
+	if (rtm.auth_token) {
+		get_rtm_timeline(function(){
+			new_task_part2(1)
+		})
+	}
+	else {
+		rtm_log_in_func(function(){
+			get_rtm_timeline(function(){
+				new_task_part2(1)
+			})
+		})
+	}
+}
+var new_task_part2 = function(attempt_cnt){
+	rtm.get('rtm.tasks.add', {name: new_task_string, parse: 1, timeline: rtm_timeline }, function(resp){
+		$('#new_task_result').append(attempt_cnt + ':status: ' + resp.rsp.stat + ' : \'rtm.tasks.add\'');
+		$('#new_task_result').append('<br>');
+		if (resp.rsp.stat === 'fail') {
+			$('#new_task_result').append(attempt_cnt + ':dang. : \'rtm.tasks.add\'');
+			$('#new_task_result').append('<br>');
+			$('#new_task_result').append(attempt_cnt + ':err code:' + resp.rsp.err.code + ' : \'rtm.tasks.add\'');
+			$('#new_task_result').append('<br>');
+			$('#new_task_result').append(attempt_cnt + ':err msg:' + resp.rsp.err.msg + ' : \'rtm.tasks.add\'');
+			$('#new_task_result').append('<br>');
+			const invalid_login_errcode = 98
+			if (resp.rsp.err.code == invalid_login_errcode) {
+				$('#new_task_result').append(attempt_cnt + ':invalid login detected. : \'rtm.tasks.add\'');
+				$('#new_task_result').append('<br>');
+				rtm_log_in_func(function() {
+					/* infinite recursion limit */
+					if (attempt_cnt < 5) {
+						new_task_part2(attempt_cnt + 1)
+					}
+				})
+			}
+		}
+		else {
+			/* success */
+			/* hard coded assumption of just 1 taskseries and just 1 task */
+			/* so no repeating tasks */
+			var       list_id   = resp.rsp.list.id
+			var taskseries_id   = resp.rsp.list.taskseries[0].id
+			var       task_id   = resp.rsp.list.taskseries[0].task[0].id
+			var       task_name = resp.rsp.list.taskseries[0].name
+			
+			/* RTM smart add via API treats all exclaimation points as priority if they're followed by char and not space, even if char is not a number */
+			/* so ues __excl: instead of '!' and replace that here */
+			var re = new RegExp(__excl_str, 'g')
+			var new_task_name = task_name.replace(re, '!')
+			add_to_result(attempt_cnt + ':task name: ' + new_task_name)
+			rtm.get('rtm.tasks.setName', {timeline: rtm_timeline,
+											list_id: list_id,
+											taskseries_id: taskseries_id,
+											task_id: task_id,
+											name: new_task_name
+											},
+					function(resp){
+						$('#new_task_result').append(attempt_cnt + ':status: ' + resp.rsp.stat + ' : \'rtm.tasks.setName\'');
+						$('#new_task_result').append('<br>');
+					
+			});
+		}
+	})
+}
+
+var rtm_test_init_text = '[...]';
+var rtm_test_key = 'test_key';
+var rtm_test_val = 'test_value';
+var rtm_test_hash = {};
+rtm_test_hash[rtm_test_key] = rtm_test_val;
+var do_rtm_test = function(){
+	if ($('#test_results').html() == rtm_test_init_text) {
+		$('#test_results').html('');
+	}
+	else {
+		$('#test_results').append('<br>');
+	}
+	$('#test_results').append('rtm.test.echo:');
+	$('#test_results').append('<br>');
+	rtm.do('rtm.test.echo', rtm_test_hash, function(resp){
+		$('#test_results').append('status: ' + resp.rsp.stat);
+		$('#test_results').append('<br>');
+		$('#test_results').append(rtm_test_key + ': "' + resp.rsp[rtm_test_key] + '"');
+		$('#test_results').append('<br>');
+		$('#test_results').append('(should be: "' + rtm_test_val + '")');
+		$('#test_results').append('<br>');
+		if (resp.rsp[rtm_test_key] == rtm_test_val) {
+			$('#test_results').append('pass');
+		}
+		else {
+			$('#test_results').append('fail');
+		}
+		})
+}
+
+var rtm_time_init_text = '[...]'
+var do_rtm_time = function(){
+	if ($('#time_results').html() == rtm_time_init_text) {
+		$('#time_results').html('');
+	}
+	else {
+		$('#time_results').append('<br>');
+	}
+	$('#time_results').append('rtm.time.parse:');
+	$('#time_results').append('<br>');
+	rtm.do('rtm.time.parse', {text: Date()}, function(resp){
+		$('#time_results').append('status: ' + resp.rsp.stat);
+		$('#time_results').append('<br>');
+		$('#time_results').append('date time returned:');
+		$('#time_results').append('<br>');
+		$('#time_results').append(resp.rsp.time.$t);
+	})
+/* end of time and test */
+}
+
+</script>
+
+
+
+	<style>
+		h1, h2, h3, h4, h5 {
+		  font-family: Arial;
+		}
+		/* .a_list is in div so copy div gets itdont use buttons :'( */
+		button#auth
+		,
+		#new_task_string_input
+		,
+		#new_task_button
+		,
+		#test_button
+		,
+		#time_button
+		{
+			width: 300px;
+            border-radius: 0.5em;
+            background-color: #e0e0ff;
+			padding: 1em;
+		}
+		button#auth
+		,
+		#new_task_button
+		,
+		#test_button
+		,
+		#time_button
+		{
+			border: solid #0202b0 0.2em;
+		}
+		#rtm_test
+		,
+		#rtm_time
+		{
+			margin-top: 2em;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+		#test_results_container
+		{
+			display: inline-block;
+		}
+		#new_task_string_input
+		{
+			min-height: 4em;
+			padding: 2em;
+			text-align: center;
+			width: 60vw /*100em*/;
+		}
+		#new_task_result
+		,
+		#test_results
+		,
+		#time_results
+		{
+			margin: 1em;
+			margin-top: 0em;
+			margin-left: 0em;
+			padding: 1em;
+			float: left;
+			/* width: 210px; */
+		}
+		#test_results_container
+		,
+		#time_results_container
+		{
+			margin-top: 1em;
+			margin-left: 1em;
+			text-align: left;
+		}
+		#new_task_result
+		{
+			border: solid 1px blue;
+			margin-top: 2em;
+		}
+		#test_results
+		,
+		#time_results
+		{
+			border: solid 1px black;
+		}
+		footer
+		{
+			position: absolute;
+			bottom: 0;
+			text-align: center;
+			width: 100%;
+			opacity: 30%;
+		}
+	</style>
+</head>
+<!--
+end
+of
+head
+-->
+
+
+
+
+<body style="font-family: arial;">
+<div id="whole_body_div" style="margin: auto; padding: 1em; border-radius: 2em; width:95%; _X_height:95%; border: solid #c0c0ff; background-color: #f0f0ff">
+
+<div style="text-align: center;">
+<h1>rtm.js new task example for <a href="http://rememberthemilk.com">Remember The Milk</a> </h1>
+ 
+<hr>
+
+<div id="auth_div">
+<br />
+<button id="auth" disabled="disabled">Click to Log In with Remember The Milk</button>
+</div>
+
+
+<div id="new_day_own_string_div">
+<br />
+Put your smart add text string here:
+<br />
+<!-- placeholder="put your text string here" -->
+<input id="new_task_string_input" placeholder="put your own text string here" value="!urgent 07/31/2024 Wed some text ^today 5pm !1 testing rtm API smart add (initial) #tag1 #tools" >
+</input>
+<button id="new_task_button" >Make new RTM task with this smart add string</button>
+<br />
+(exclamation point before non-space char requires special handling; does not handle repeating tasks.)
+</div>
+
+
+
+<div id="rtm_test">
+<button id="test_button" >RTM test</button>
+<div id="test_results_container">
+<div>results:</div>
+<div id="test_results">[...loading...]</div>
+</div>
+</div>
+
+
+
+
+<div id="rtm_time">
+<button id="time_button" >RTM time</button>
+<div id="time_results_container">
+<div>results:</div>
+<div id="time_results">[...loading...]</div>
+</div>
+</div>
+
+
+
+</div> <!-- id="whole_body_div" centered top -->
+
+
+<div id="new_task_result">results...<br /></div>
+
+
+</div>
+ <footer>
+ <span>
+ (brought to you by john kumpf of <a href="http://MontgomeryMinds.com">Montgomery Minds</a>)
+ </span>
+ </footer>
+</body>
+
+
+
+
+
+
+
+</html>
